@@ -1,0 +1,16 @@
+{
+  "name": "jev-bia",
+  "private": true,
+  "type": "module",
+  "description": "Segunda opinião do TypeSafe (Jev) sobre as decisões de um agente de vendas no WhatsApp",
+  "scripts": {
+    "test": "vitest run",
+    "exemplo": "tsx exemplos/testar.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.9"
+  }
+}
