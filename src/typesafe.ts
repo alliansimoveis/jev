@@ -36,6 +36,16 @@ export const PERGUNTAS = {
       false: "Anything else: questions, doubts, price objections, postponing ('vou pensar', 'agora não posso', 'mais adiante a gente vê', 'quando precisar procuro'), thanks, greetings, or interest.",
     },
   },
+  // "Não tenho interesse no momento" é recusa, mas não para sempre: só pausa a
+  // Bia e o contato segue livre para um disparo futuro (decisão de 22/09/2026).
+  recusa_definitiva: {
+    type: "noul",
+    instructions: "In `ultima_fala_do_cliente`, does the customer refuse for good, with no time limit, rather than only for now?",
+    criteria: {
+      true: "Permanent refusal: 'não tenho interesse', 'não quero', 'pare de mandar', 'me tira da lista', 'nunca'.",
+      false: "Refusal limited in time or no refusal: 'não tenho interesse no momento', 'agora não', 'por enquanto não', 'quem sabe mais pra frente'.",
+    },
+  },
   numero_errado: {
     type: "noul",
     instructions: "In `ultima_fala_do_cliente`, does the person say this phone number does not belong to the person Bia is looking for, or that they do not know that person?",
@@ -86,6 +96,8 @@ export const PERGUNTAS = {
 
 export type Leitura = {
   recusa: number;
+  /** Ausente nas leituras de antes de 22/09/2026. */
+  recusaDefinitiva?: number;
   numeroErrado: number;
   querHumano: number;
   biaMostrouCadastro: number;
@@ -158,6 +170,7 @@ export async function lerComTypeSafe(conversa: MensagemDaConversa[], nomeDoCarta
       const a = j.answers ?? {};
       return {
         recusa: r2(a.recusa?.noul),
+        recusaDefinitiva: r2(a.recusa_definitiva?.noul),
         numeroErrado: r2(a.numero_errado?.noul),
         querHumano: r2(a.quer_humano?.noul),
         biaMostrouCadastro: r2(a.bia_mostrou_cadastro?.noul),

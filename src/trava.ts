@@ -18,7 +18,7 @@ export const LIMITE_DA_TRAVA = 0.5;
 /** A partir disto o Jev viu com clareza algo que o Claude deixou passar. */
 export const LIMITE_DE_ALERTA = 0.8;
 
-export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe";
+export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe" | "pedido_de_pessoa";
 
 export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { acao: AcaoDoAgente; trava: Trava | null; motivo: string | null } {
   if (!leitura) return { acao, trava: null, motivo: null };
@@ -34,7 +34,27 @@ export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { aca
       motivo: `TypeSafe não viu confirmação do cadastro (Bia mostrou ${pct(leitura.biaMostrouCadastro)}, cliente confirmou ${pct(leitura.confirmouCadastro)}): a equipe confere antes de fechar`,
     };
   }
+  // A pessoa pediu uma pessoa (ex.: botão "Falar com a equipe") e o Claude
+  // seguiu o roteiro: vai para a equipe (22/09/2026, caso do cartão #404).
+  // Só quando ele seguiu a conversa: ligação agendada e cadastro confirmado já chegam a uma pessoa.
+  if ((acao === "responder" || acao === "aguardar") && leitura.querHumano >= LIMITE_DE_ALERTA) {
+    return {
+      acao: "passar_para_humano", trava: "pedido_de_pessoa",
+      motivo: `a pessoa pediu para falar com alguém da equipe (TypeSafe ${pct(leitura.querHumano)})`,
+    };
+  }
   return { acao, trava: null, motivo: null };
+}
+
+/**
+ * Encerrar sem interesse põe o número no "não perturbar" só quando a recusa é
+ * para sempre ou o número é de outra pessoa. "Não tenho interesse no momento"
+ * só pausa a Bia (decisão de 22/09/2026). Sem leitura do TypeSafe, vale o de
+ * antes: não perturbar.
+ */
+export function vaiParaNaoPerturbar(leitura: Leitura | null): boolean {
+  if (!leitura || leitura.recusaDefinitiva == null) return true;
+  return leitura.recusaDefinitiva >= LIMITE_DA_TRAVA || leitura.numeroErrado >= LIMITE_DA_TRAVA;
 }
 
 /** Onde os dois discordam, em uma frase para a tela. null quando concordam. */
@@ -42,14 +62,12 @@ export function discordancia(acaoDoClaude: AcaoDoAgente | string, leitura: Leitu
   if (!leitura) return null;
   if (trava === "encerrar_para_equipe") return "Claude encerrou, TypeSafe não viu recusa";
   if (trava === "confirmacao_para_equipe") return "Claude deu cadastro confirmado, TypeSafe não viu confirmação";
+  if (trava === "pedido_de_pessoa") return "Cliente pediu uma pessoa, Claude seguiu o roteiro";
   const seguiu = acaoDoClaude === "responder" || acaoDoClaude === "aguardar";
   if (seguiu && leitura.recusa >= LIMITE_DE_ALERTA) return "TypeSafe viu recusa, Claude seguiu a conversa";
   if (seguiu && leitura.numeroErrado >= LIMITE_DE_ALERTA) return "TypeSafe viu número errado, Claude seguiu a conversa";
   if (acaoDoClaude !== "passar_para_humano" && leitura.querHumano >= LIMITE_DE_ALERTA) return "Cliente pediu uma pessoa, Claude não passou para a equipe";
   if (acaoDoClaude === "ligacao_agendada" && leitura.aceitouLigacao < LIMITE_DA_TRAVA) return "Claude agendou ligação, TypeSafe não viu aceite";
-  if (seguiu && leitura.biaMostrouCadastro >= LIMITE_DE_ALERTA && leitura.confirmouCadastro >= LIMITE_DE_ALERTA) {
-    return "TypeSafe viu cadastro confirmado, Claude seguiu a conversa";
-  }
   return null;
 }
 

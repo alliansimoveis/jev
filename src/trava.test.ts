@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarTrava, discordancia } from "./trava";
+import { aplicarTrava, discordancia, vaiParaNaoPerturbar } from "./trava";
 import { anonimizar, estadoParaTypeSafe, type Leitura } from "./typesafe";
 
 const leitura = (x: Partial<Leitura> = {}): Leitura => ({
@@ -29,10 +29,33 @@ describe("aplicarTrava", () => {
     expect(aplicarTrava("dados_confirmados", leitura({ biaMostrouCadastro: 0.05, confirmouCadastro: 0.92 })).trava).toBe("confirmacao_para_equipe");
     expect(aplicarTrava("dados_confirmados", leitura({ biaMostrouCadastro: 0.95, confirmouCadastro: 0.11 })).acao).toBe("passar_para_humano");
   });
-  it("as outras ações nunca são travadas", () => {
-    for (const a of ["responder", "aguardar", "passar_para_humano", "ligacao_agendada", "transferir_para_closer"] as const) {
+  it("pediu uma pessoa e o Claude seguiu o roteiro: vai para a equipe (caso real #404, botão 'Falar com a equipe')", () => {
+    for (const a of ["responder", "aguardar"] as const) {
+      const r = aplicarTrava(a, leitura({ querHumano: 0.93 }));
+      expect(r.acao).toBe("passar_para_humano");
+      expect(r.trava).toBe("pedido_de_pessoa");
+    }
+    expect(aplicarTrava("responder", leitura({ querHumano: 0.6 })).acao).toBe("responder");
+  });
+  it("ligação agendada, cadastro confirmado e transferência não são atropelados pelo pedido de pessoa", () => {
+    for (const a of ["passar_para_humano", "ligacao_agendada", "transferir_para_closer"] as const) {
       expect(aplicarTrava(a, leitura({ recusa: 0.99, querHumano: 0.99 })).acao).toBe(a);
     }
+    expect(aplicarTrava("dados_confirmados", leitura({ querHumano: 0.99, biaMostrouCadastro: 0.9, confirmouCadastro: 0.9 })).acao).toBe("dados_confirmados");
+  });
+});
+
+describe("vaiParaNaoPerturbar", () => {
+  it("recusa para sempre ou número errado: não perturbar", () => {
+    expect(vaiParaNaoPerturbar(leitura({ recusa: 0.99, recusaDefinitiva: 0.95 }))).toBe(true);
+    expect(vaiParaNaoPerturbar(leitura({ recusa: 0.3, recusaDefinitiva: 0.1, numeroErrado: 0.9 }))).toBe(true);
+  });
+  it("'não tenho interesse no momento': só pausa (caso real #362)", () => {
+    expect(vaiParaNaoPerturbar(leitura({ recusa: 0.86, recusaDefinitiva: 0.2 }))).toBe(false);
+  });
+  it("sem leitura, ou leitura antiga sem a pergunta nova, fica como antes", () => {
+    expect(vaiParaNaoPerturbar(null)).toBe(true);
+    expect(vaiParaNaoPerturbar(leitura({ recusa: 0.9 }))).toBe(true);
   });
 });
 
@@ -48,6 +71,10 @@ describe("discordancia", () => {
     expect(discordancia("responder", leitura({ querHumano: 0.95 }), null)).toMatch(/pediu uma pessoa/);
     expect(discordancia("passar_para_humano", leitura({ querHumano: 0.95 }), null)).toBeNull();
     expect(discordancia("ligacao_agendada", leitura({ aceitouLigacao: 0.1 }), null)).toMatch(/não viu aceite/);
+    expect(discordancia("responder", leitura({ querHumano: 0.95 }), "pedido_de_pessoa")).toMatch(/seguiu o roteiro/);
+  });
+  it("a confirmação de cadastro da abertura não é mais alarme (20 falsos em 21-22/09)", () => {
+    expect(discordancia("responder", leitura({ biaMostrouCadastro: 0.95, confirmouCadastro: 0.95 }), null)).toBeNull();
   });
 });
 
