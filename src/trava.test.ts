@@ -26,8 +26,10 @@ describe("aplicarTrava", () => {
   it("encerrar sem recusa e sem adiamento continua indo para a equipe (caso real #534)", () => {
     expect(aplicarTrava("encerrar_sem_interesse", leitura({ recusa: 0.08, recusaDefinitiva: 0.32, intencao: "responde" })).trava).toBe("encerrar_para_equipe");
   });
-  it("cadastro listado sem 'está certo?' ainda vale (caso real #474: mostrou 45%, confirmou 98%)", () => {
-    expect(aplicarTrava("dados_confirmados", leitura({ biaMostrouCadastro: 0.45, confirmouCadastro: 0.98 })).acao).toBe("dados_confirmados");
+  it("cadastro em 45% continua barrado: o usuário avaliou o caso #474 e o TypeSafe acertou", () => {
+    expect(aplicarTrava("dados_confirmados", leitura({ biaMostrouCadastro: 0.45, confirmouCadastro: 0.98 })).trava).toBe("confirmacao_para_equipe");
+    // O "Sim" solto do cartão #558, que o usuário também deu ao TypeSafe.
+    expect(aplicarTrava("dados_confirmados", leitura({ biaMostrouCadastro: 0.07, confirmouCadastro: 0.91 })).trava).toBe("confirmacao_para_equipe");
   });
   it("encerrar com recusa clara passa", () => {
     expect(aplicarTrava("encerrar_sem_interesse", leitura({ recusa: 0.99 })).acao).toBe("encerrar_sem_interesse");

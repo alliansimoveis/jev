@@ -18,12 +18,13 @@ export const LIMITE_DA_TRAVA = 0.5;
 /** A partir disto o Jev viu com clareza algo que o Claude deixou passar. */
 export const LIMITE_DE_ALERTA = 0.8;
 /**
- * A Bia mostrar o cadastro é sim ou não, mas a pergunta cai para perto de 45%
- * quando ela lista os dados sem terminar com "está certo?" (caso real #474, em
- * que a cliente respondeu "Está correto" e a trava barrou um fechamento bom).
- * Abaixo disto continua sendo o botão "Sim, sou eu", que não é cadastro.
+ * Em 24/09/2026 baixei este limite para 30%, achando que a trava tinha barrado
+ * um fechamento bom no cartão #474 (a Bia listou os dados sem terminar com
+ * "está certo?", a pergunta ficou em 45% e a cliente respondeu "Está correto").
+ * Na avaliação da tela, o usuário marcou que ali o TypeSafe ACERTOU ao barrar:
+ * os dados listados tinham o telefone errado. Voltou para 50%.
  */
-export const LIMITE_MOSTROU_CADASTRO = 0.3;
+export const LIMITE_MOSTROU_CADASTRO = LIMITE_DA_TRAVA;
 
 export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe" | "pedido_de_pessoa" | "adiou_so_pausa";
 
@@ -33,7 +34,7 @@ export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { aca
     // "No momento não, obrigada" é adiamento: a Bia se despede e para por aqui.
     // Não é recusa para o não perturbar nem caso para chamar a equipe (24/09/2026).
     if (leitura.intencao === "adiou") {
-      return { acao, trava: "adiou_so_pausa", motivo: "a pessoa adiou, não recusou: a Bia só para de responder, sem não perturbar e sem chamar a equipe" };
+      return { acao, trava: "adiou_so_pausa", motivo: "a pessoa adiou, não recusou: a Bia se despede e o cartão vai para venda perdida, sem não perturbar e sem chamar a equipe" };
     }
     return {
       acao: "passar_para_humano", trava: "encerrar_para_equipe",
@@ -76,7 +77,7 @@ export function discordancia(acaoDoClaude: AcaoDoAgente | string, leitura: Leitu
   if (trava === "encerrar_para_equipe") return "Claude encerrou, TypeSafe não viu recusa";
   if (trava === "confirmacao_para_equipe") return "Claude deu cadastro confirmado, TypeSafe não viu confirmação";
   if (trava === "pedido_de_pessoa") return "Cliente pediu uma pessoa, Claude seguiu o roteiro";
-  if (trava === "adiou_so_pausa") return "Claude encerrou, TypeSafe viu adiamento: só pausou";
+  if (trava === "adiou_so_pausa") return "Claude encerrou, TypeSafe viu adiamento: cartão em venda perdida, sem bloquear o número";
   const seguiu = acaoDoClaude === "responder" || acaoDoClaude === "aguardar";
   if (seguiu && leitura.recusa >= LIMITE_DE_ALERTA) return "TypeSafe viu recusa, Claude seguiu a conversa";
   if (seguiu && leitura.numeroErrado >= LIMITE_DE_ALERTA) return "TypeSafe viu número errado, Claude seguiu a conversa";
