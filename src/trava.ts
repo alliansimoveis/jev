@@ -17,18 +17,30 @@ import type { Leitura } from "./typesafe";
 export const LIMITE_DA_TRAVA = 0.5;
 /** A partir disto o Jev viu com clareza algo que o Claude deixou passar. */
 export const LIMITE_DE_ALERTA = 0.8;
+/**
+ * A Bia mostrar o cadastro é sim ou não, mas a pergunta cai para perto de 45%
+ * quando ela lista os dados sem terminar com "está certo?" (caso real #474, em
+ * que a cliente respondeu "Está correto" e a trava barrou um fechamento bom).
+ * Abaixo disto continua sendo o botão "Sim, sou eu", que não é cadastro.
+ */
+export const LIMITE_MOSTROU_CADASTRO = 0.3;
 
-export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe" | "pedido_de_pessoa";
+export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe" | "pedido_de_pessoa" | "adiou_so_pausa";
 
 export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { acao: AcaoDoAgente; trava: Trava | null; motivo: string | null } {
   if (!leitura) return { acao, trava: null, motivo: null };
   if (acao === "encerrar_sem_interesse" && Math.max(leitura.recusa, leitura.numeroErrado) < LIMITE_DA_TRAVA) {
+    // "No momento não, obrigada" é adiamento: a Bia se despede e para por aqui.
+    // Não é recusa para o não perturbar nem caso para chamar a equipe (24/09/2026).
+    if (leitura.intencao === "adiou") {
+      return { acao, trava: "adiou_so_pausa", motivo: "a pessoa adiou, não recusou: a Bia só para de responder, sem não perturbar e sem chamar a equipe" };
+    }
     return {
       acao: "passar_para_humano", trava: "encerrar_para_equipe",
       motivo: `TypeSafe não viu recusa (recusa ${pct(leitura.recusa)}, número errado ${pct(leitura.numeroErrado)}): em vez do não perturbar, a equipe decide`,
     };
   }
-  if (acao === "dados_confirmados" && Math.min(leitura.biaMostrouCadastro, leitura.confirmouCadastro) < LIMITE_DA_TRAVA) {
+  if (acao === "dados_confirmados" && (leitura.confirmouCadastro < LIMITE_DA_TRAVA || leitura.biaMostrouCadastro < LIMITE_MOSTROU_CADASTRO)) {
     return {
       acao: "passar_para_humano", trava: "confirmacao_para_equipe",
       motivo: `TypeSafe não viu confirmação do cadastro (Bia mostrou ${pct(leitura.biaMostrouCadastro)}, cliente confirmou ${pct(leitura.confirmouCadastro)}): a equipe confere antes de fechar`,
@@ -54,6 +66,7 @@ export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { aca
  */
 export function vaiParaNaoPerturbar(leitura: Leitura | null): boolean {
   if (!leitura || leitura.recusaDefinitiva == null) return true;
+  if (leitura.intencao === "adiou") return false;
   return leitura.recusaDefinitiva >= LIMITE_DA_TRAVA || leitura.numeroErrado >= LIMITE_DA_TRAVA;
 }
 
@@ -63,6 +76,7 @@ export function discordancia(acaoDoClaude: AcaoDoAgente | string, leitura: Leitu
   if (trava === "encerrar_para_equipe") return "Claude encerrou, TypeSafe não viu recusa";
   if (trava === "confirmacao_para_equipe") return "Claude deu cadastro confirmado, TypeSafe não viu confirmação";
   if (trava === "pedido_de_pessoa") return "Cliente pediu uma pessoa, Claude seguiu o roteiro";
+  if (trava === "adiou_so_pausa") return "Claude encerrou, TypeSafe viu adiamento: só pausou";
   const seguiu = acaoDoClaude === "responder" || acaoDoClaude === "aguardar";
   if (seguiu && leitura.recusa >= LIMITE_DE_ALERTA) return "TypeSafe viu recusa, Claude seguiu a conversa";
   if (seguiu && leitura.numeroErrado >= LIMITE_DE_ALERTA) return "TypeSafe viu número errado, Claude seguiu a conversa";

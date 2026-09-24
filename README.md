@@ -29,6 +29,8 @@ Desde 22/09/2026 há mais duas regras:
 - **Pedido de pessoa.** Se a pessoa pede alguém da equipe (por exemplo, o botão "Falar com a equipe") e o Claude segue o roteiro, sai só um aviso curto e a conversa vai para a closer. Ligação agendada e cadastro confirmado não são afetados.
 - **"Não tenho interesse no momento" só pausa a Bia.** O número vai para o "não perturbar" só quando a recusa é para sempre ou quando é de outra pessoa.
 
+Ajustes de 24/09/2026, depois de 446 turnos lidos: quando a pessoa **adia** ("no momento não, obrigada"), a Bia se despede e para por aqui, sem "não perturbar" e sem chamar a equipe. E a pergunta "a Bia mostrou o cadastro?" passou a valer a partir de 30%, porque ela cai para perto de 45% quando a Bia lista os dados sem terminar com "está certo?", o que chegou a barrar um fechamento bom.
+
 As outras ações seguem como o Claude decidiu, e a leitura do Jev fica registrada para comparação.
 
 Se o TypeSafe estiver fora do ar, sem chave ou demorar mais de 8 segundos, a leitura é `null` e a Bia segue exatamente como antes.

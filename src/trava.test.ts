@@ -17,6 +17,18 @@ describe("aplicarTrava", () => {
     expect(r.acao).toBe("passar_para_humano");
     expect(r.trava).toBe("encerrar_para_equipe");
   });
+  it("'no momento não, obrigada': a Bia só para, sem chamar a equipe (casos reais #441, #449, #466)", () => {
+    const r = aplicarTrava("encerrar_sem_interesse", leitura({ recusa: 0.4, recusaDefinitiva: 0.05, intencao: "adiou" }));
+    expect(r.acao).toBe("encerrar_sem_interesse");
+    expect(r.trava).toBe("adiou_so_pausa");
+    expect(vaiParaNaoPerturbar(leitura({ recusa: 0.4, recusaDefinitiva: 0.05, intencao: "adiou" }))).toBe(false);
+  });
+  it("encerrar sem recusa e sem adiamento continua indo para a equipe (caso real #534)", () => {
+    expect(aplicarTrava("encerrar_sem_interesse", leitura({ recusa: 0.08, recusaDefinitiva: 0.32, intencao: "responde" })).trava).toBe("encerrar_para_equipe");
+  });
+  it("cadastro listado sem 'está certo?' ainda vale (caso real #474: mostrou 45%, confirmou 98%)", () => {
+    expect(aplicarTrava("dados_confirmados", leitura({ biaMostrouCadastro: 0.45, confirmouCadastro: 0.98 })).acao).toBe("dados_confirmados");
+  });
   it("encerrar com recusa clara passa", () => {
     expect(aplicarTrava("encerrar_sem_interesse", leitura({ recusa: 0.99 })).acao).toBe("encerrar_sem_interesse");
   });
