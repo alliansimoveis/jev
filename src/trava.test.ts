@@ -114,22 +114,39 @@ describe("estadoParaTypeSafe", () => {
     expect(e.ultima_mensagem_da_bia).toMatch(/Tá certo/);
     expect(e.conversa).toHaveLength(3);
   });
+  it("mensagem longa da Bia: fica o FIM (o resumo de fechamento termina com a pergunta)", () => {
+    const resumo = "x".repeat(2000) + " Posso gerar a assinatura?";
+    const e = estadoParaTypeSafe([
+      { direcao: "outbound", tipo: "text", texto: resumo, em: 1 },
+      { direcao: "inbound", tipo: "text", texto: "sim", em: 2 },
+    ] as any);
+    expect(e.ultima_mensagem_da_bia).toMatch(/Posso gerar a assinatura\?$/);
+    expect(e.ultima_mensagem_da_bia.length).toBeLessThanOrEqual(1200);
+  });
 });
 
 describe("trava das ações da Bia Fecha Contrato", () => {
   it("criar_assinatura sem o sim do cliente vai para a equipe", () => {
-    const t = aplicarTrava("criar_assinatura", leitura({ confirmouResumo: 0.2 }));
+    const t = aplicarTrava("criar_assinatura", leitura({ biaPediuParaGerar: 0.9, confirmouResumo: 0.2 }));
     expect(t.acao).toBe("passar_para_humano");
     expect(t.trava).toBe("fechamento_para_equipe");
-    expect(discordancia("criar_assinatura", leitura({ confirmouResumo: 0.2 }), t.trava)).toContain("assinatura");
+    expect(discordancia("criar_assinatura", leitura({ biaPediuParaGerar: 0.9, confirmouResumo: 0.2 }), t.trava)).toContain("assinatura");
   });
-  it("com o sim, criar_pedido passa", () => {
-    expect(aplicarTrava("criar_pedido", leitura({ confirmouResumo: 0.9 })).trava).toBeNull();
+  it("a trava exige as duas perguntas, como dados_confirmados: a Bia ter pedido licença E o cliente ter dito sim", () => {
+    expect(aplicarTrava("criar_assinatura", leitura({ biaPediuParaGerar: 0.9, confirmouResumo: 0.9 })).trava).toBeNull();
+    expect(aplicarTrava("criar_pedido", leitura({ biaPediuParaGerar: 0.9, confirmouResumo: 0.9 })).trava).toBeNull();
+    // Pergunta solta ("Pode ser no cartão?" → "sim"): a Bia não pediu licença, trava mesmo com o sim.
+    expect(aplicarTrava("criar_assinatura", leitura({ biaPediuParaGerar: 0.2, confirmouResumo: 0.9 })).trava).toBe("fechamento_para_equipe");
+    // No limite exato (50%), passa.
+    expect(aplicarTrava("criar_assinatura", leitura({ biaPediuParaGerar: 0.9, confirmouResumo: 0.5 })).trava).toBeNull();
   });
-  it("leitura antiga, sem a pergunta nova, usa a confirmação do cadastro", () => {
-    expect(aplicarTrava("criar_assinatura", leitura({ confirmouCadastro: 0.9 })).trava).toBeNull();
+  it("leitura antiga, sem as perguntas novas, trava mesmo com o cadastro confirmado: lado seguro", () => {
+    expect(aplicarTrava("criar_assinatura", leitura({ confirmouCadastro: 0.95 })).trava).toBe("fechamento_para_equipe");
   });
   it("sem leitura, nada trava", () => {
     expect(aplicarTrava("criar_assinatura", null).trava).toBeNull();
+  });
+  it("discordância do pedido tem texto próprio", () => {
+    expect(discordancia("criar_pedido", leitura({ biaPediuParaGerar: 0.9, confirmouResumo: 0.2 }), "fechamento_para_equipe")).toContain("pedido");
   });
 });

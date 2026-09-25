@@ -4,8 +4,9 @@
  * O Claude escreve a resposta e escolhe a ação. O Jev não escreve nada: lê a
  * conversa e devolve probabilidades para perguntas fechadas ("a pessoa
  * recusou?", "confirmou o cadastro?"). O código usa essa leitura para travar
- * as duas ações que não têm volta (ver trava.ts) e grava tudo no turno, para a
- * tela "Bia × TypeSafe" mostrar onde os dois discordam.
+ * as quatro ações que não têm volta (encerrar, dados confirmados, criar
+ * assinatura, criar pedido; ver trava.ts) e grava tudo no turno, para a tela
+ * "Bia × TypeSafe" mostrar onde os dois discordam.
  *
  * O Jev não aprende com as conversas: melhora quando as perguntas daqui
  * melhoram. Ele lê ao pé da letra; no teste de 21/09 a pergunta "confirmou o
@@ -77,8 +78,17 @@ export const PERGUNTAS = {
     type: "noul",
     instructions: "In `ultima_mensagem_da_bia`, Bia summarized something and asked for permission to proceed (e.g. 'Posso gerar a assinatura?', 'Registro?'). In `ultima_fala_do_cliente`, does the customer clearly say yes to that?",
     criteria: {
-      true: "Clear yes: 'sim', 'pode', 'pode gerar', 'confirmo', 'isso', 'ok pode', 'registra'.",
+      true: "Clear yes: 'sim', 'pode', 'pode gerar', 'pode sim', 'confirmo', 'isso', 'ok', 'ok pode', 'fechado', 'bora', 'registra', '👍'.",
       false: "No such question was asked, or the customer corrects something, asks a question, hesitates ('deixa eu ver'), or says no.",
+    },
+  },
+  // Só a última mensagem da Bia: ela pediu licença para gerar/registrar? (a trava exige as duas)
+  bia_pediu_para_gerar: {
+    type: "noul",
+    instructions: "Does `ultima_mensagem_da_bia` end with Bia asking permission to proceed after a summary: a subscription summary (people, monthly R$, payment method, 'fidelidade de 12 meses') ending in 'Posso gerar a assinatura?', or an appointment summary (patient, specialty or exams, city/period) ending in 'Registro?'?",
+    criteria: {
+      true: "A summary followed by 'Posso gerar a assinatura?' or 'Registro?'.",
+      false: "A single question about one item ('Pode ser no cartão?', who uses the telemedicine, anyone else, CEP), 'Quer marcar mais alguma coisa?', an offer, or anything else.",
     },
   },
   aceitou_ligacao: {
@@ -113,6 +123,8 @@ export type Leitura = {
   confirmouCadastro: number;
   /** Ausente nas leituras de antes de 25/09/2026. */
   confirmouResumo?: number;
+  /** Ausente nas leituras de antes de 25/09/2026. */
+  biaPediuParaGerar?: number;
   aceitouLigacao: number;
   intencao: string;
   intencaoConfianca: number;
@@ -139,7 +151,12 @@ export function anonimizar(texto: string | null | undefined, nomeDoCartao?: stri
   return t.replace(/[ \t]{2,}/g, " ").replace(/ +([,.!?])/g, "$1").trim();
 }
 
-/** O que o Jev lê: a conversa desde o disparo, a última fala do cliente e a última mensagem da Bia antes dela. */
+/**
+ * O que o Jev lê: a conversa desde o disparo, a última fala do cliente e a
+ * última mensagem da Bia antes dela. Fica o FIM da mensagem da Bia, não o
+ * começo: no resumo de fechamento a pergunta ("Posso gerar a assinatura?",
+ * "Registro?") vem depois de um resumo longo.
+ */
 export function estadoParaTypeSafe(conversa: MensagemDaConversa[], nomeDoCartao?: string | null) {
   const janela = conversa.slice(-14);
   let i = janela.length - 1;
@@ -151,7 +168,7 @@ export function estadoParaTypeSafe(conversa: MensagemDaConversa[], nomeDoCartao?
       quem: m.direcao === "inbound" ? "cliente" : "Bia",
       texto: anonimizar(m.texto ?? `[${m.tipo}]`, nomeDoCartao).slice(0, 600),
     })),
-    ultima_mensagem_da_bia: bia.slice(0, 1200),
+    ultima_mensagem_da_bia: bia.slice(-1200),
     ultima_fala_do_cliente: fala.join("\n").slice(0, 1200),
   };
 }
@@ -187,6 +204,7 @@ export async function lerComTypeSafe(conversa: MensagemDaConversa[], nomeDoCarta
         biaMostrouCadastro: r2(a.bia_mostrou_cadastro?.noul),
         confirmouCadastro: r2(a.confirmou_cadastro?.noul),
         confirmouResumo: r2(a.confirmou_resumo?.noul),
+        biaPediuParaGerar: r2(a.bia_pediu_para_gerar?.noul),
         aceitouLigacao: r2(a.aceitou_ligacao?.noul),
         intencao: String(a.intencao?.choice ?? "outro"),
         intencaoConfianca: r2(a.intencao?.confidence),

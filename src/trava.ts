@@ -2,10 +2,12 @@
  * O que o código faz com a leitura do TypeSafe (21/09/2026). Regras puras, sem
  * banco nem rede, para os testes.
  *
- * Trava: só nas duas ações que não têm volta. Encerrar sem interesse põe o
- * número no "não perturbar"; dados confirmados chama a closer para fechar. Se o
- * Jev não enxerga o mesmo que o Claude, a conversa vai para a equipe em vez de
- * o sistema agir sozinho. Sem leitura (TypeSafe fora), nada muda.
+ * Trava: só nas quatro ações que não têm volta. Encerrar sem interesse põe o
+ * número no "não perturbar"; dados confirmados chama a closer para fechar;
+ * criar assinatura e criar pedido (Bia Fecha Contrato) exigem o resumo com o
+ * sim do cliente. Se o Jev não enxerga o mesmo que o Claude, a conversa vai
+ * para a equipe em vez de o sistema agir sozinho. Sem leitura (TypeSafe
+ * fora), nada muda.
  *
  * Discordância: o que a tela "Bia × TypeSafe" mostra para a equipe marcar
  * quem acertou. Não muda nada na conversa.
@@ -48,13 +50,17 @@ export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { aca
     };
   }
   // Bia Fecha Contrato: criar a assinatura e registrar o pedido não têm volta.
-  // Leitura antiga (sem a pergunta nova) cai na confirmação do cadastro.
+  // Duas perguntas, como dados_confirmados: a Bia pediu licença para gerar E o
+  // cliente disse sim (o Jev lê ao pé da letra; uma pergunta só, combinando as
+  // duas, disparava em "Pode ser no cartão?" → "sim").
   if (acao === "criar_assinatura" || acao === "criar_pedido") {
-    const sim = leitura.confirmouResumo ?? leitura.confirmouCadastro;
-    if (sim < LIMITE_DA_TRAVA) {
+    // Leitura sem as perguntas novas vale 0: sem o sim visto, a equipe conclui (é o lado seguro).
+    const pediu = leitura.biaPediuParaGerar ?? 0;
+    const sim = leitura.confirmouResumo ?? 0;
+    if (pediu < LIMITE_DA_TRAVA || sim < LIMITE_DA_TRAVA) {
       return {
         acao: "passar_para_humano", trava: "fechamento_para_equipe",
-        motivo: `TypeSafe não viu o sim do cliente (${pct(sim)}): a equipe conclui ${acao === "criar_assinatura" ? "a assinatura" : "o pedido"}`,
+        motivo: `TypeSafe não viu o resumo com o sim do cliente (Bia pediu para gerar ${pct(pediu)}, cliente disse sim ${pct(sim)}): a equipe conclui ${acao === "criar_assinatura" ? "a assinatura" : "o pedido"}`,
       };
     }
   }
@@ -89,7 +95,7 @@ export function discordancia(acaoDoClaude: AcaoDoAgente | string, leitura: Leitu
   if (trava === "confirmacao_para_equipe") return "Claude deu cadastro confirmado, TypeSafe não viu confirmação";
   if (trava === "pedido_de_pessoa") return "Cliente pediu uma pessoa, Claude seguiu o roteiro";
   if (trava === "adiou_so_pausa") return "Claude encerrou, TypeSafe viu adiamento: cartão em venda perdida, sem bloquear o número";
-  if (trava === "fechamento_para_equipe") return acaoDoClaude === "criar_assinatura" ? "Claude criou a assinatura, TypeSafe não viu o sim" : "Claude registrou o pedido, TypeSafe não viu o sim";
+  if (trava === "fechamento_para_equipe") return acaoDoClaude === "criar_assinatura" ? "Claude ia criar a assinatura, TypeSafe não viu o resumo com o sim" : "Claude ia registrar o pedido, TypeSafe não viu o resumo com o sim";
   const seguiu = acaoDoClaude === "responder" || acaoDoClaude === "aguardar";
   if (seguiu && leitura.recusa >= LIMITE_DE_ALERTA) return "TypeSafe viu recusa, Claude seguiu a conversa";
   if (seguiu && leitura.numeroErrado >= LIMITE_DE_ALERTA) return "TypeSafe viu número errado, Claude seguiu a conversa";
