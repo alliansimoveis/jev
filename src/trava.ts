@@ -26,7 +26,7 @@ export const LIMITE_DE_ALERTA = 0.8;
  */
 export const LIMITE_MOSTROU_CADASTRO = LIMITE_DA_TRAVA;
 
-export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe" | "pedido_de_pessoa" | "adiou_so_pausa";
+export type Trava = "encerrar_para_equipe" | "confirmacao_para_equipe" | "pedido_de_pessoa" | "adiou_so_pausa" | "fechamento_para_equipe";
 
 export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { acao: AcaoDoAgente; trava: Trava | null; motivo: string | null } {
   if (!leitura) return { acao, trava: null, motivo: null };
@@ -46,6 +46,17 @@ export function aplicarTrava(acao: AcaoDoAgente, leitura: Leitura | null): { aca
       acao: "passar_para_humano", trava: "confirmacao_para_equipe",
       motivo: `TypeSafe não viu confirmação do cadastro (Bia mostrou ${pct(leitura.biaMostrouCadastro)}, cliente confirmou ${pct(leitura.confirmouCadastro)}): a equipe confere antes de fechar`,
     };
+  }
+  // Bia Fecha Contrato: criar a assinatura e registrar o pedido não têm volta.
+  // Leitura antiga (sem a pergunta nova) cai na confirmação do cadastro.
+  if (acao === "criar_assinatura" || acao === "criar_pedido") {
+    const sim = leitura.confirmouResumo ?? leitura.confirmouCadastro;
+    if (sim < LIMITE_DA_TRAVA) {
+      return {
+        acao: "passar_para_humano", trava: "fechamento_para_equipe",
+        motivo: `TypeSafe não viu o sim do cliente (${pct(sim)}): a equipe conclui ${acao === "criar_assinatura" ? "a assinatura" : "o pedido"}`,
+      };
+    }
   }
   // A pessoa pediu uma pessoa (ex.: botão "Falar com a equipe") e o Claude
   // seguiu o roteiro: vai para a equipe (22/09/2026, caso do cartão #404).
@@ -78,6 +89,7 @@ export function discordancia(acaoDoClaude: AcaoDoAgente | string, leitura: Leitu
   if (trava === "confirmacao_para_equipe") return "Claude deu cadastro confirmado, TypeSafe não viu confirmação";
   if (trava === "pedido_de_pessoa") return "Cliente pediu uma pessoa, Claude seguiu o roteiro";
   if (trava === "adiou_so_pausa") return "Claude encerrou, TypeSafe viu adiamento: cartão em venda perdida, sem bloquear o número";
+  if (trava === "fechamento_para_equipe") return acaoDoClaude === "criar_assinatura" ? "Claude criou a assinatura, TypeSafe não viu o sim" : "Claude registrou o pedido, TypeSafe não viu o sim";
   const seguiu = acaoDoClaude === "responder" || acaoDoClaude === "aguardar";
   if (seguiu && leitura.recusa >= LIMITE_DE_ALERTA) return "TypeSafe viu recusa, Claude seguiu a conversa";
   if (seguiu && leitura.numeroErrado >= LIMITE_DE_ALERTA) return "TypeSafe viu número errado, Claude seguiu a conversa";

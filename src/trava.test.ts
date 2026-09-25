@@ -115,3 +115,21 @@ describe("estadoParaTypeSafe", () => {
     expect(e.conversa).toHaveLength(3);
   });
 });
+
+describe("trava das ações da Bia Fecha Contrato", () => {
+  it("criar_assinatura sem o sim do cliente vai para a equipe", () => {
+    const t = aplicarTrava("criar_assinatura", leitura({ confirmouResumo: 0.2 }));
+    expect(t.acao).toBe("passar_para_humano");
+    expect(t.trava).toBe("fechamento_para_equipe");
+    expect(discordancia("criar_assinatura", leitura({ confirmouResumo: 0.2 }), t.trava)).toContain("assinatura");
+  });
+  it("com o sim, criar_pedido passa", () => {
+    expect(aplicarTrava("criar_pedido", leitura({ confirmouResumo: 0.9 })).trava).toBeNull();
+  });
+  it("leitura antiga, sem a pergunta nova, usa a confirmação do cadastro", () => {
+    expect(aplicarTrava("criar_assinatura", leitura({ confirmouCadastro: 0.9 })).trava).toBeNull();
+  });
+  it("sem leitura, nada trava", () => {
+    expect(aplicarTrava("criar_assinatura", null).trava).toBeNull();
+  });
+});

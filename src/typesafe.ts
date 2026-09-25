@@ -72,6 +72,15 @@ export const PERGUNTAS = {
       false: "Does not confirm, corrects some data, asks a question, or only confirms their identity ('sou eu').",
     },
   },
+  // Bia Fecha Contrato (25/09/2026): o "sim" para o resumo da assinatura ou do pedido.
+  confirmou_resumo: {
+    type: "noul",
+    instructions: "In `ultima_mensagem_da_bia`, Bia summarized something and asked for permission to proceed (e.g. 'Posso gerar a assinatura?', 'Registro?'). In `ultima_fala_do_cliente`, does the customer clearly say yes to that?",
+    criteria: {
+      true: "Clear yes: 'sim', 'pode', 'pode gerar', 'confirmo', 'isso', 'ok pode', 'registra'.",
+      false: "No such question was asked, or the customer corrects something, asks a question, hesitates ('deixa eu ver'), or says no.",
+    },
+  },
   aceitou_ligacao: {
     type: "noul",
     instructions: "Did Bia offer a phone call in `conversa`, and in `ultima_fala_do_cliente` does the customer accept receiving the call or give a time for it?",
@@ -102,6 +111,8 @@ export type Leitura = {
   querHumano: number;
   biaMostrouCadastro: number;
   confirmouCadastro: number;
+  /** Ausente nas leituras de antes de 25/09/2026. */
+  confirmouResumo?: number;
   aceitouLigacao: number;
   intencao: string;
   intencaoConfianca: number;
@@ -175,6 +186,7 @@ export async function lerComTypeSafe(conversa: MensagemDaConversa[], nomeDoCarta
         querHumano: r2(a.quer_humano?.noul),
         biaMostrouCadastro: r2(a.bia_mostrou_cadastro?.noul),
         confirmouCadastro: r2(a.confirmou_cadastro?.noul),
+        confirmouResumo: r2(a.confirmou_resumo?.noul),
         aceitouLigacao: r2(a.aceitou_ligacao?.noul),
         intencao: String(a.intencao?.choice ?? "outro"),
         intencaoConfianca: r2(a.intencao?.confidence),
